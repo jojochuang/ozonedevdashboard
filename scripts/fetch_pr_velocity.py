@@ -236,6 +236,8 @@ def main() -> int:
   )
   args = parser.parse_args()
   payload = fetch_all()
+  from pathlib import Path
+  Path(args.output).parent.mkdir(parents=True, exist_ok=True)
   with open(args.output, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)
   print(f"Wrote {args.output} ({payload['total_merged_prs']} merged PRs)", file=sys.stderr)
