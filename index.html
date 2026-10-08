@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ozone Dev Dashboard — PR Velocity</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+  <script src="assets/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Apache Ozone — development velocity</h1>
+    <p id="meta">Loading metrics…</p>
+  </header>
+
+  <div class="controls">
+    <label for="granularity">Group by</label>
+    <select id="granularity" aria-label="Time granularity">
+      <option value="year">Year</option>
+      <option value="quarter">Quarter</option>
+      <option value="month" selected>Month</option>
+    </select>
+  </div>
+
+  <p id="load-error" class="error" role="alert"></p>
+
+  <main>
+    <div class="grid">
+      <section class="panel">
+        <h2>Merged pull requests</h2>
+        <div class="chart-wrap"><canvas id="chart-merged"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>PR lead time (open → merge)</h2>
+        <div class="chart-wrap"><canvas id="chart-lead"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>Time to first review</h2>
+        <div class="chart-wrap"><canvas id="chart-review"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>CI pass rate (head commit rollup)</h2>
+        <div class="chart-wrap"><canvas id="chart-ci"></canvas></div>
+      </section>
+    </div>
+
+    <section class="panel table-panel">
+      <h2>Detail table</h2>
+      <table id="metrics-table">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Merged</th>
+            <th>Lead p50</th>
+            <th>Lead p90</th>
+            <th>Review p50</th>
+            <th>Review p90</th>
+            <th>Review cov.</th>
+            <th>CI pass</th>
+            <th>CI n</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <p class="note">
+      Periods use PR <strong>merge date</strong>. p50 is median. CI pass rate uses GitHub
+      <code>statusCheckRollup</code> on the PR head commit (mostly available from ~2025 onward).
+      Refreshed monthly via GitHub Actions.
+    </p>
+  </main>
+</body>
+</html>
