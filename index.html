@@ -12,6 +12,7 @@
   <header>
     <h1>Apache Ozone — development velocity</h1>
     <p id="meta">Loading metrics…</p>
+    <p id="snapshot" class="snapshot"></p>
   </header>
 
   <div class="controls">
@@ -28,7 +29,7 @@
   <main>
     <div class="grid">
       <section class="panel">
-        <h2>Merged pull requests</h2>
+        <h2>PRs opened vs merged</h2>
         <div class="chart-wrap"><canvas id="chart-merged"></canvas></div>
       </section>
       <section class="panel">
@@ -36,12 +37,28 @@
         <div class="chart-wrap"><canvas id="chart-lead"></canvas></div>
       </section>
       <section class="panel">
-        <h2>Time to first review</h2>
+        <h2>Review pickup vs post-review wait</h2>
         <div class="chart-wrap"><canvas id="chart-review"></canvas></div>
       </section>
       <section class="panel">
         <h2>CI pass rate (head commit rollup)</h2>
         <div class="chart-wrap"><canvas id="chart-ci"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>Unique contributors (merge authors)</h2>
+        <div class="chart-wrap"><canvas id="chart-contributors"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>PR size (changed files)</h2>
+        <div class="chart-wrap"><canvas id="chart-size"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>Flow &amp; stability</h2>
+        <div class="chart-wrap"><canvas id="chart-quality"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>GitHub issues closed</h2>
+        <div class="chart-wrap"><canvas id="chart-issues"></canvas></div>
       </section>
     </div>
 
@@ -52,13 +69,16 @@
           <tr>
             <th>Period</th>
             <th>Merged</th>
+            <th>Opened</th>
+            <th>Flow</th>
+            <th>Authors</th>
             <th>Lead p50</th>
-            <th>Lead p90</th>
-            <th>Review p50</th>
-            <th>Review p90</th>
-            <th>Review cov.</th>
+            <th>Post-rev p50</th>
+            <th>Files p50</th>
+            <th>Reviews p50</th>
+            <th>Revert %</th>
+            <th>Issues</th>
             <th>CI pass</th>
-            <th>CI n</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -66,9 +86,10 @@
     </section>
 
     <p class="note">
-      Periods use PR <strong>merge date</strong>. p50 is median. CI pass rate uses GitHub
-      <code>statusCheckRollup</code> on the PR head commit (mostly available from ~2025 onward).
-      Refreshed monthly via GitHub Actions.
+      <strong>Opened</strong> uses PR create date (includes unmerged). <strong>Merged</strong> and contributor stats use merge date.
+      <strong>Flow</strong> is merged÷opened in the same calendar period (&gt;1 means backlog drain).
+      <strong>Post-review</strong> is first review → merge. CI rollup is reliable from ~2025. See
+      <code>metric_definitions</code> in <code>data/metrics.json</code>. Updated monthly via GitHub Actions.
     </p>
   </main>
 </body>
