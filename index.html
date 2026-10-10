@@ -38,6 +38,7 @@
       </section>
       <section class="panel">
         <h2>Review pickup vs post-review wait</h2>
+        <p class="chart-note">Human reviews only — excludes GitHub Copilot automated review (<code>copilot-pull-request-reviewer</code>).</p>
         <div class="chart-wrap"><canvas id="chart-review"></canvas></div>
       </section>
       <section class="panel">
@@ -88,7 +89,7 @@
     <p class="note">
       <strong>Opened</strong> uses PR create date (includes unmerged). <strong>Merged</strong> and contributor stats use merge date.
       <strong>Flow</strong> is merged÷opened in the same calendar period (&gt;1 means backlog drain).
-      <strong>Post-review</strong> is first review → merge. CI rollup is reliable from ~2025. See
+      <strong>Post-review</strong> is first human review → merge (Copilot automated review excluded). CI rollup is reliable from ~2025. See
       <code>metric_definitions</code> in <code>data/metrics.json</code>. Updated monthly via GitHub Actions.
     </p>
   </main>

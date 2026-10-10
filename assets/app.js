@@ -90,8 +90,8 @@ function renderCharts(periods, map) {
     data: {
       labels,
       datasets: [
-        { label: "1st review p50 (days)", data: revP50Days, borderColor: "#74c0fc", tension: 0.2 },
-        { label: "After review → merge p50 (days)", data: postP50Days, borderColor: "#ff922b", tension: 0.2 },
+        { label: "1st human review p50 (days)", data: revP50Days, borderColor: "#74c0fc", tension: 0.2 },
+        { label: "After human review → merge p50 (days)", data: postP50Days, borderColor: "#ff922b", tension: 0.2 },
       ],
     },
     options: common,

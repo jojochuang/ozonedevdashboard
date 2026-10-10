@@ -90,6 +90,18 @@ main {
   color: var(--muted);
 }
 
+.panel .chart-note {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.panel .chart-note code {
+  font-size: 0.76rem;
+  color: var(--text);
+}
+
 .chart-wrap {
   position: relative;
   height: 260px;

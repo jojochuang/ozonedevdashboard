@@ -19,6 +19,9 @@ REPO_NAME = "ozone"
 PAGE_SIZE = 50
 REPO = f"{REPO_OWNER}/{REPO_NAME}"
 
+# GitHub Copilot code review (see .asf.yaml copilot_code_review on apache/ozone).
+AUTOMATED_REVIEWER_LOGINS = frozenset({"copilot-pull-request-reviewer"})
+
 QUERY = """
 query($cursor: String) {
   repository(owner: "%s", name: "%s") {
@@ -41,7 +44,7 @@ query($cursor: String) {
         changedFiles
         reviews(first: 20) {
           totalCount
-          nodes { submittedAt state }
+          nodes { submittedAt state author { login } }
         }
         comments { totalCount }
         commits(last: 1) {
@@ -102,9 +105,22 @@ def gh_search_count(query: str, attempt: int = 0) -> int:
     raise RuntimeError(e.output) from e
 
 
-def first_review_time(created: datetime, reviews: List[dict]) -> Optional[float]:
+def is_automated_reviewer(login: Optional[str]) -> bool:
+  if not login:
+    return False
+  low = login.lower()
+  if low in AUTOMATED_REVIEWER_LOGINS:
+    return True
+  return "copilot" in low and "review" in low
+
+
+def first_human_review_time(created: datetime, reviews: List[dict]) -> Optional[float]:
+  """Hours from PR open to first non-automated review submission."""
   best: Optional[datetime] = None
   for r in reviews:
+    login = (r.get("author") or {}).get("login")
+    if is_automated_reviewer(login):
+      continue
     sub = r.get("submittedAt")
     if not sub:
       continue
@@ -217,6 +233,7 @@ def summarize(b: Bucket) -> dict:
       "post_review_p50_h": percentile(post, 0.50) if post else None,
       "post_review_p90_h": percentile(post, 0.90) if post else None,
       "review_coverage_pct": (100.0 * len(rev) / b.merged) if b.merged else 0.0,
+      "review_excludes_automated": True,
       "files_p50": percentile(files, 0.50),
       "files_p90": percentile(files, 0.90),
       "lines_p50": percentile(lines, 0.50),
@@ -389,7 +406,7 @@ def fetch_all() -> dict:
       created = parse_ts(created_at)
       lead_h = (merged - created).total_seconds() / 3600.0
       review_nodes = (p.get("reviews") or {}).get("nodes") or []
-      rev_h = first_review_time(created, review_nodes)
+      rev_h = first_human_review_time(created, review_nodes)
       review_total = (p.get("reviews") or {}).get("totalCount") or len(review_nodes)
       commits = (p.get("commits") or {}).get("nodes") or []
       ci = ci_state(commits)
@@ -458,7 +475,9 @@ def fetch_all() -> dict:
           "flow_ratio": "merged / opened in same calendar period",
           "issues_closed": "GitHub issues closed in period",
           "unique_contributors": "Distinct PR authors among merges in period",
-          "post_review_p50_h": "Median hours from first review submission to merge",
+          "review_p50_h": "Median hours to first human review (excludes Copilot automated review)",
+          "post_review_p50_h": "Median hours from first human review to merge",
+          "review_excludes_automated": "Copilot logins such as copilot-pull-request-reviewer are excluded",
           "files_p50": "Median changed files per merged PR",
           "lines_p50": "Median lines added+deleted per merged PR",
           "reviews_per_pr_p50": "Median formal review submissions per merged PR",
