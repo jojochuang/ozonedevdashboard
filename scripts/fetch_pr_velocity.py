@@ -47,7 +47,7 @@ query($cursor: String) {
           nodes { submittedAt state author { login } }
         }
         comments { totalCount }
-        commits(last: 1) {
+        commits(last: 15) {
           nodes {
             commit {
               statusCheckRollup { state }
@@ -114,6 +114,31 @@ def is_automated_reviewer(login: Optional[str]) -> bool:
   return "copilot" in low and "review" in low
 
 
+SLOW_MERGE_HOURS = 14 * 24
+
+
+def first_human_approval_time(created: datetime, reviews: List[dict]) -> Optional[float]:
+  """Hours from PR open to first human APPROVED review."""
+  best: Optional[datetime] = None
+  for r in reviews:
+    login = (r.get("author") or {}).get("login")
+    if is_automated_reviewer(login):
+      continue
+    if r.get("state") != "APPROVED":
+      continue
+    sub = r.get("submittedAt")
+    if not sub:
+      continue
+    t = parse_ts(sub)
+    if t <= created:
+      continue
+    if best is None or t < best:
+      best = t
+  if best is None:
+    return None
+  return (best - created).total_seconds() / 3600.0
+
+
 def first_human_review_time(created: datetime, reviews: List[dict]) -> Optional[float]:
   """Hours from PR open to first non-automated review submission."""
   best: Optional[datetime] = None
@@ -134,7 +159,7 @@ def first_human_review_time(created: datetime, reviews: List[dict]) -> Optional[
   return (best - created).total_seconds() / 3600.0
 
 
-def ci_state(commits_last: List[dict]) -> Optional[str]:
+def ci_head_state(commits_last: List[dict]) -> Optional[str]:
   if not commits_last:
     return None
   node = commits_last[0].get("commit") or {}
@@ -142,6 +167,22 @@ def ci_state(commits_last: List[dict]) -> Optional[str]:
   if not rollup:
     return None
   return rollup.get("state")
+
+
+def ci_had_failure_on_recent_commits(commits_nodes: List[dict]) -> Optional[bool]:
+  """True if any of the last N commits had rollup FAILURE (proxy for CI rework)."""
+  saw_state = False
+  for node in commits_nodes:
+    rollup = (node.get("commit") or {}).get("statusCheckRollup")
+    if not rollup:
+      continue
+    state = rollup.get("state")
+    if not state:
+      continue
+    saw_state = True
+    if state == "FAILURE":
+      return True
+  return False if saw_state else None
 
 
 def period_keys(dt: datetime) -> Tuple[str, str, str]:
@@ -180,10 +221,15 @@ class Bucket:
   lead_hours: List[float] = field(default_factory=list)
   review_hours: List[float] = field(default_factory=list)
   post_review_hours: List[float] = field(default_factory=list)
+  approval_hours: List[float] = field(default_factory=list)
+  approval_to_merge_hours: List[float] = field(default_factory=list)
+  slow_merge_14d: int = 0
   ci_success: int = 0
   ci_failure: int = 0
   ci_other: int = 0
   ci_unknown: int = 0
+  ci_fail_before_merge: int = 0
+  ci_fail_before_merge_known: int = 0
   authors: Set[str] = field(default_factory=set)
   changed_files: List[float] = field(default_factory=list)
   lines_changed: List[float] = field(default_factory=list)
@@ -232,8 +278,20 @@ def summarize(b: Bucket) -> dict:
       "review_p90_h": percentile(rev, 0.90) if rev else None,
       "post_review_p50_h": percentile(post, 0.50) if post else None,
       "post_review_p90_h": percentile(post, 0.90) if post else None,
+      "approval_p50_h": percentile(sorted(b.approval_hours), 0.50) if b.approval_hours else None,
+      "approval_p90_h": percentile(sorted(b.approval_hours), 0.90) if b.approval_hours else None,
+      "approval_to_merge_p50_h": percentile(sorted(b.approval_to_merge_hours), 0.50)
+      if b.approval_to_merge_hours else None,
+      "approval_to_merge_p90_h": percentile(sorted(b.approval_to_merge_hours), 0.90)
+      if b.approval_to_merge_hours else None,
+      "approval_coverage_pct": (100.0 * len(b.approval_hours) / b.merged) if b.merged else 0.0,
+      "slow_merge_pct_14d": (100.0 * b.slow_merge_14d / b.merged) if b.merged else None,
       "review_coverage_pct": (100.0 * len(rev) / b.merged) if b.merged else 0.0,
       "review_excludes_automated": True,
+      "ci_fail_before_merge_pct": (
+          100.0 * b.ci_fail_before_merge / b.ci_fail_before_merge_known
+      ) if b.ci_fail_before_merge_known else None,
+      "ci_fail_before_merge_known_n": b.ci_fail_before_merge_known,
       "files_p50": percentile(files, 0.50),
       "files_p90": percentile(files, 0.90),
       "lines_p50": percentile(lines, 0.50),
@@ -263,7 +321,9 @@ def add_merged_pr(
     key: str,
     lead_h: float,
     review_h: Optional[float],
+    approval_h: Optional[float],
     ci: Optional[str],
+    ci_had_failure: Optional[bool],
     author: Optional[str],
     changed_files: int,
     lines: int,
@@ -275,9 +335,14 @@ def add_merged_pr(
   b = buckets[key]
   b.merged += 1
   b.lead_hours.append(lead_h)
+  if lead_h > SLOW_MERGE_HOURS:
+    b.slow_merge_14d += 1
   if review_h is not None:
     b.review_hours.append(review_h)
     b.post_review_hours.append(max(0.0, lead_h - review_h))
+  if approval_h is not None:
+    b.approval_hours.append(approval_h)
+    b.approval_to_merge_hours.append(max(0.0, lead_h - approval_h))
   if author:
     b.authors.add(author)
   b.changed_files.append(float(changed_files))
@@ -296,6 +361,10 @@ def add_merged_pr(
     b.ci_failure += 1
   else:
     b.ci_other += 1
+  if ci_had_failure is not None:
+    b.ci_fail_before_merge_known += 1
+    if ci_had_failure:
+      b.ci_fail_before_merge += 1
 
 
 def fetch_search_counts_by_month(kind: str, start: datetime, end: datetime) -> Dict[str, int]:
@@ -331,22 +400,53 @@ def fetch_snapshot() -> dict:
   open_json = subprocess.check_output(
       [
           "gh", "pr", "list", "--repo", REPO, "--state", "open", "--limit", "500",
-          "--json", "updatedAt",
+          "--json", "createdAt,updatedAt",
       ],
       text=True,
   )
   open_prs = json.loads(open_json)
   now = datetime.now(timezone.utc)
   stale_30 = 0
+  ages_h: List[float] = []
   for pr in open_prs:
     updated = parse_ts(pr["updatedAt"])
+    created = parse_ts(pr["createdAt"])
+    ages_h.append((now - created).total_seconds() / 3600.0)
     if (now - updated).total_seconds() > 30 * 86400:
       stale_30 += 1
+  ages_h.sort()
   return {
       "open_prs_total": open_total,
       "open_prs_stale_30d_in_sample": stale_30,
       "open_prs_sample_size": len(open_prs),
+      "open_age_p50_h": percentile(ages_h, 0.50) if ages_h else None,
+      "open_age_p90_h": percentile(ages_h, 0.90) if ages_h else None,
   }
+
+
+def load_open_pr_history(path: Optional[str]) -> List[dict]:
+  if not path:
+    return []
+  try:
+    with open(path, encoding="utf-8") as f:
+      data = json.load(f)
+    return list(data.get("open_pr_history") or [])
+  except (OSError, json.JSONDecodeError):
+    return []
+
+
+def append_open_pr_history(history: List[dict], snapshot: dict, generated_at: str) -> List[dict]:
+  point = {
+      "at": generated_at,
+      "open_prs_total": snapshot.get("open_prs_total"),
+      "open_age_p50_h": snapshot.get("open_age_p50_h"),
+      "open_age_p90_h": snapshot.get("open_age_p90_h"),
+  }
+  if history and history[-1].get("at", "")[:10] == generated_at[:10]:
+    history[-1] = point
+  else:
+    history.append(point)
+  return history[-72:]
 
 
 def merge_flow_counts(
@@ -374,7 +474,7 @@ def merge_flow_counts(
     by_year[k].issues_closed = v
 
 
-def fetch_all() -> dict:
+def fetch_all(input_metrics_path: Optional[str] = None) -> dict:
   by_year: Dict[str, Bucket] = defaultdict(Bucket)
   by_quarter: Dict[str, Bucket] = defaultdict(Bucket)
   by_month: Dict[str, Bucket] = defaultdict(Bucket)
@@ -407,9 +507,11 @@ def fetch_all() -> dict:
       lead_h = (merged - created).total_seconds() / 3600.0
       review_nodes = (p.get("reviews") or {}).get("nodes") or []
       rev_h = first_human_review_time(created, review_nodes)
+      appr_h = first_human_approval_time(created, review_nodes)
       review_total = (p.get("reviews") or {}).get("totalCount") or len(review_nodes)
       commits = (p.get("commits") or {}).get("nodes") or []
-      ci = ci_state(commits)
+      ci = ci_head_state(commits[-1:] if commits else [])
+      ci_had_failure = ci_had_failure_on_recent_commits(commits)
       author = (p.get("author") or {}).get("login")
       title = (p.get("title") or "").strip()
       additions = int(p.get("additions") or 0)
@@ -424,7 +526,9 @@ def fetch_all() -> dict:
             key,
             lead_h,
             rev_h,
+            appr_h,
             ci,
+            ci_had_failure,
             author,
             changed,
             additions + deletions,
@@ -460,15 +564,18 @@ def fetch_all() -> dict:
   )
 
   snapshot = fetch_snapshot()
+  generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+  open_pr_history = append_open_pr_history(load_open_pr_history(input_metrics_path), snapshot, generated_at)
 
   year_keys = sorted(by_year.keys())
   quarter_keys = sorted(by_quarter.keys())
   month_keys = sorted(by_month.keys())
   return {
-      "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+      "generated_at": generated_at,
       "repository": REPO,
       "total_merged_prs": total,
       "snapshot": snapshot,
+      "open_pr_history": open_pr_history,
       "metric_definitions": {
           "merged": "PRs merged in period (by mergedAt)",
           "opened": "PRs created in period (GitHub search, includes unmerged)",
@@ -477,6 +584,10 @@ def fetch_all() -> dict:
           "unique_contributors": "Distinct PR authors among merges in period",
           "review_p50_h": "Median hours to first human review (excludes Copilot automated review)",
           "post_review_p50_h": "Median hours from first human review to merge",
+          "approval_to_merge_p50_h": "Median hours from first human APPROVED review to merge",
+          "slow_merge_pct_14d": "Percent of merges with lead time over 14 days",
+          "ci_fail_before_merge_pct": "Percent with FAILURE on last 15 commits' check rollup (2025+ coverage)",
+          "open_pr_history": "Monthly snapshot points of open PR count and age percentiles",
           "review_excludes_automated": "Copilot logins such as copilot-pull-request-reviewer are excluded",
           "files_p50": "Median changed files per merged PR",
           "lines_p50": "Median lines added+deleted per merged PR",
@@ -496,8 +607,17 @@ def main() -> int:
   parser.add_argument(
       "-o", "--output", default="data/metrics.json", help="Output JSON path (default: data/metrics.json)"
   )
+  parser.add_argument(
+      "-i", "--input", default=None,
+      help="Previous metrics.json for open_pr_history continuity (defaults to --output if it exists)",
+  )
   args = parser.parse_args()
-  payload = fetch_all()
+  input_path = args.input
+  if input_path is None:
+    from pathlib import Path
+    if Path(args.output).is_file():
+      input_path = args.output
+  payload = fetch_all(input_path)
   from pathlib import Path
   Path(args.output).parent.mkdir(parents=True, exist_ok=True)
   with open(args.output, "w", encoding="utf-8") as f:

@@ -3808,5 +3808,13 @@
       "ci_other": 0,
       "ci_unknown": 0
     }
-  }
+  },
+  "open_pr_history": [
+    {
+      "at": "2026-10-10T03:33:36Z",
+      "open_prs_total": 122,
+      "open_age_p50_h": null,
+      "open_age_p90_h": null
+    }
+  ]
 }

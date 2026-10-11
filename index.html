@@ -27,23 +27,40 @@
   <p id="load-error" class="error" role="alert"></p>
 
   <main>
+    <h2 class="section-title">Velocity levers</h2>
     <div class="grid">
       <section class="panel">
-        <h2>PRs opened vs merged</h2>
-        <div class="chart-wrap"><canvas id="chart-merged"></canvas></div>
+        <h2>Approval → merge</h2>
+        <p class="chart-note">Human <code>APPROVED</code> only; Copilot excluded. Targets committer/CI queue after sign-off.</p>
+        <div class="chart-wrap"><canvas id="chart-approval"></canvas></div>
       </section>
       <section class="panel">
-        <h2>PR lead time (open → merge)</h2>
+        <h2>Lead time &amp; slow merges</h2>
+        <p class="chart-note">p50/p90 lead time; % of merges taking &gt;14 days (tail risk).</p>
         <div class="chart-wrap"><canvas id="chart-lead"></canvas></div>
       </section>
       <section class="panel">
         <h2>Review pickup vs post-review wait</h2>
-        <p class="chart-note">Human reviews only — excludes GitHub Copilot automated review (<code>copilot-pull-request-reviewer</code>).</p>
+        <p class="chart-note">Human reviews only — excludes GitHub Copilot (<code>copilot-pull-request-reviewer</code>).</p>
         <div class="chart-wrap"><canvas id="chart-review"></canvas></div>
       </section>
       <section class="panel">
-        <h2>CI pass rate (head commit rollup)</h2>
+        <h2>CI: pass rate &amp; fail-before-merge</h2>
+        <p class="chart-note">Head rollup pass rate; fail-before-merge = any FAILURE on last 15 commits (CI rework proxy).</p>
         <div class="chart-wrap"><canvas id="chart-ci"></canvas></div>
+      </section>
+      <section class="panel panel-wide">
+        <h2>Open PR queue (monthly snapshots)</h2>
+        <p class="chart-note">Appended each metrics refresh; age percentiles from open PR sample (up to 500).</p>
+        <div class="chart-wrap chart-wrap-tall"><canvas id="chart-queue"></canvas></div>
+      </section>
+    </div>
+
+    <h2 class="section-title">Throughput &amp; context</h2>
+    <div class="grid">
+      <section class="panel">
+        <h2>PRs opened vs merged</h2>
+        <div class="chart-wrap"><canvas id="chart-merged"></canvas></div>
       </section>
       <section class="panel">
         <h2>Unique contributors (merge authors)</h2>
@@ -72,13 +89,10 @@
             <th>Merged</th>
             <th>Opened</th>
             <th>Flow</th>
-            <th>Authors</th>
             <th>Lead p50</th>
-            <th>Post-rev p50</th>
-            <th>Files p50</th>
-            <th>Reviews p50</th>
-            <th>Revert %</th>
-            <th>Issues</th>
+            <th>&gt;14d %</th>
+            <th>Appr→merge p50</th>
+            <th>CI fail pre</th>
             <th>CI pass</th>
           </tr>
         </thead>
@@ -87,10 +101,7 @@
     </section>
 
     <p class="note">
-      <strong>Opened</strong> uses PR create date (includes unmerged). <strong>Merged</strong> and contributor stats use merge date.
-      <strong>Flow</strong> is merged÷opened in the same calendar period (&gt;1 means backlog drain).
-      <strong>Post-review</strong> is first human review → merge (Copilot automated review excluded). CI rollup is reliable from ~2025. See
-      <code>metric_definitions</code> in <code>data/metrics.json</code>. Updated monthly via GitHub Actions.
+      See <code>metric_definitions</code> in <code>data/metrics.json</code>. Updated monthly via GitHub Actions.
     </p>
   </main>
 </body>

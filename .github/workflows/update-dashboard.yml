@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -39,7 +39,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p site/data
-          python3 scripts/fetch_pr_velocity.py -o site/data/metrics.json
+          python3 scripts/fetch_pr_velocity.py --input data/metrics.json -o site/data/metrics.json
 
       - name: Use committed metrics snapshot (push builds)
         if: github.event_name == 'push'
@@ -62,3 +62,13 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Commit refreshed metrics snapshot
+        if: github.event_name != 'push'
+        run: |
+          cp site/data/metrics.json data/metrics.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/metrics.json
+          git diff --staged --quiet || git commit -m "Refresh data/metrics.json from metrics workflow."
+          git push

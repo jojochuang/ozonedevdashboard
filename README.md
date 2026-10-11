@@ -3,7 +3,9 @@
 Static dashboard for [apache/ozone](https://github.com/apache/ozone) pull-request velocity:
 
 - PRs **opened** vs **merged**, flow ratio, open-PR snapshot (stale &gt;30d)
+- **Approval → merge** (human `APPROVED`, Copilot excluded), **slow merges (&gt;14d)**, **open PR queue** history
 - PR lead time and **post-review → merge** wait (p50 / p90)
+- **CI fail-before-merge** (FAILURE on last 15 commits) alongside head pass rate
 - Time to first review (p50 / p90)
 - **Unique contributors**, PR **size** (files/lines), **reviews** and **comments** per PR
 - **Revert rate**, **issues closed** (GitHub)
