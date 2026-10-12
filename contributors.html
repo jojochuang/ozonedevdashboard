@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ozone Dev Dashboard — Contributor activity</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+  <script src="assets/contributors.js" defer></script>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="index.html">Velocity</a>
+    <a href="contributors.html" aria-current="page">Contributors</a>
+  </nav>
+
+  <header>
+    <h1>Contributor activity</h1>
+    <p id="meta">Loading…</p>
+    <p id="trunc-note" class="snapshot"></p>
+  </header>
+
+  <div class="controls">
+    <label for="granularity">Group by</label>
+    <select id="granularity" aria-label="Time granularity">
+      <option value="month" selected>Month</option>
+      <option value="quarter">Quarter</option>
+      <option value="year">Year</option>
+    </select>
+    <label for="period">Period</label>
+    <select id="period" aria-label="Period"></select>
+  </div>
+
+  <p id="period-summary" class="snapshot"></p>
+  <p id="load-error" class="error" role="alert"></p>
+
+  <main>
+    <div class="grid">
+      <section class="panel">
+        <h2>Top submitted (PR author)</h2>
+        <div class="chart-wrap"><canvas id="chart-submitted"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>Top reviewed (human)</h2>
+        <div class="chart-wrap"><canvas id="chart-reviewed"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>Top merged by</h2>
+        <div class="chart-wrap"><canvas id="chart-merged-by"></canvas></div>
+      </section>
+    </div>
+
+    <section class="panel table-panel">
+      <h2>Rankings</h2>
+      <table id="contrib-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Login</th>
+            <th data-sort="submitted" class="sortable">Submitted</th>
+            <th data-sort="reviewed" class="sortable">Reviewed</th>
+            <th data-sort="mergedBy" class="sortable">Merged by</th>
+            <th data-sort="total" class="sortable">Total</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <p class="note">
+      <strong>Submitted</strong> = PRs opened (<code>author</code>, by <code>createdAt</code>).
+      <strong>Reviewed</strong> = formal review submissions (Copilot excluded).
+      <strong>Merged by</strong> = GitHub <code>mergedBy</code> on merged PRs.
+      Quarter/year totals sum underlying months.
+    </p>
+  </main>
+</body>
+</html>

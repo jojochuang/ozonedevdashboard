@@ -20,7 +20,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -40,18 +40,20 @@ jobs:
         run: |
           mkdir -p site/data
           python3 scripts/fetch_pr_velocity.py --input data/metrics.json -o site/data/metrics.json
+          python3 scripts/fetch_contributor_activity.py -o site/data/contributor_activity.json
 
       - name: Use committed metrics snapshot (push builds)
         if: github.event_name == 'push'
         run: |
           mkdir -p site/data
           cp data/metrics.json site/data/metrics.json
+          cp data/contributor_activity.json site/data/contributor_activity.json
 
       - name: Assemble site
         run: |
           mkdir -p site/data site/assets
-          cp index.html site/
-          cp assets/style.css assets/app.js site/assets/
+          cp index.html contributors.html site/
+          cp assets/style.css assets/app.js assets/contributors.js site/assets/
           touch site/.nojekyll
 
       - name: Upload Pages artifact
@@ -67,8 +69,9 @@ jobs:
         if: github.event_name != 'push'
         run: |
           cp site/data/metrics.json data/metrics.json
+          cp site/data/contributor_activity.json data/contributor_activity.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/metrics.json
-          git diff --staged --quiet || git commit -m "Refresh data/metrics.json from metrics workflow."
+          git add data/metrics.json data/contributor_activity.json
+          git diff --staged --quiet || git commit -m "Refresh dashboard JSON from metrics workflow."
           git push

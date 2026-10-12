@@ -8,19 +8,27 @@ import calendar
 import json
 import subprocess
 import sys
-import urllib.parse
 from collections import defaultdict
+from pathlib import Path as PathLib
+
+sys.path.insert(0, str(PathLib(__file__).resolve().parent))
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 
-REPO_OWNER = "apache"
-REPO_NAME = "ozone"
-PAGE_SIZE = 50
-REPO = f"{REPO_OWNER}/{REPO_NAME}"
-
-# GitHub Copilot code review (see .asf.yaml copilot_code_review on apache/ozone).
-AUTOMATED_REVIEWER_LOGINS = frozenset({"copilot-pull-request-reviewer"})
+from github_metrics_common import (
+    REPO,
+    REPO_NAME,
+    REPO_OWNER,
+    PAGE_SIZE,
+    gh_search_count,
+    is_automated_reviewer,
+    is_bot_login,
+    parse_ts,
+    percentile,
+    period_keys,
+    run_graphql,
+)
 
 QUERY = """
 query($cursor: String) {
@@ -61,57 +69,8 @@ query($cursor: String) {
 """ % (REPO_OWNER, REPO_NAME, PAGE_SIZE)
 
 
-def parse_ts(s: str) -> datetime:
-  return datetime.fromisoformat(s.replace("Z", "+00:00"))
-
-
-def gh_graphql(cursor: Optional[str], attempt: int = 0) -> dict:
-  cmd = ["gh", "api", "graphql", "-f", f"query={QUERY}"]
-  if cursor:
-    cmd.extend(["-f", f"cursor={cursor}"])
-  try:
-    out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
-  except subprocess.CalledProcessError as e:
-    if attempt < 5:
-      import time
-      time.sleep(15 * (attempt + 1))
-      return gh_graphql(cursor, attempt + 1)
-    raise RuntimeError(e.output) from e
-  data = json.loads(out)
-  if data.get("errors"):
-    msg = json.dumps(data["errors"])
-    if attempt < 5 and ("rate limit" in msg.lower() or "secondary" in msg.lower()):
-      import time
-      time.sleep(60 * (attempt + 1))
-      return gh_graphql(cursor, attempt + 1)
-    raise RuntimeError(data["errors"])
-  return data["data"]["repository"]["pullRequests"]
-
-
-def gh_search_count(query: str, attempt: int = 0) -> int:
-  try:
-    path = f"search/issues?q={urllib.parse.quote(query)}"
-    out = subprocess.check_output(
-        ["gh", "api", path, "--jq", ".total_count"],
-        text=True,
-        stderr=subprocess.STDOUT,
-    )
-    return int(out.strip())
-  except subprocess.CalledProcessError as e:
-    if attempt < 3:
-      import time
-      time.sleep(10 * (attempt + 1))
-      return gh_search_count(query, attempt + 1)
-    raise RuntimeError(e.output) from e
-
-
-def is_automated_reviewer(login: Optional[str]) -> bool:
-  if not login:
-    return False
-  low = login.lower()
-  if low in AUTOMATED_REVIEWER_LOGINS:
-    return True
-  return "copilot" in low and "review" in low
+def gh_graphql(cursor: Optional[str]) -> dict:
+  return run_graphql(QUERY, cursor)["data"]["repository"]["pullRequests"]
 
 
 SLOW_MERGE_HOURS = 14 * 24
@@ -185,13 +144,6 @@ def ci_had_failure_on_recent_commits(commits_nodes: List[dict]) -> Optional[bool
   return False if saw_state else None
 
 
-def period_keys(dt: datetime) -> Tuple[str, str, str]:
-  y = dt.year
-  m = dt.month
-  q = (m - 1) // 3 + 1
-  return (f"{y:04d}", f"{y:04d}-Q{q}", f"{y:04d}-{m:02d}")
-
-
 def month_range(start: datetime, end: datetime) -> List[str]:
   keys: List[str] = []
   y, m = start.year, start.month
@@ -239,19 +191,6 @@ class Bucket:
   bot_merges: int = 0
   opened: int = 0
   issues_closed: int = 0
-
-
-def percentile(sorted_vals: List[float], p: float) -> Optional[float]:
-  if not sorted_vals:
-    return None
-  if len(sorted_vals) == 1:
-    return sorted_vals[0]
-  k = (len(sorted_vals) - 1) * p
-  f = int(k)
-  c = min(f + 1, len(sorted_vals) - 1)
-  if f == c:
-    return sorted_vals[f]
-  return sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f)
 
 
 def summarize(b: Bucket) -> dict:
@@ -307,13 +246,6 @@ def summarize(b: Bucket) -> dict:
       "ci_other": b.ci_other,
       "ci_unknown": b.ci_unknown,
   }
-
-
-def is_bot_login(login: Optional[str]) -> bool:
-  if not login:
-    return False
-  low = login.lower()
-  return low.endswith("[bot]") or low in ("dependabot", "github-actions")
 
 
 def add_merged_pr(

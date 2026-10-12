@@ -1,0 +1,13 @@
+{
+  "generated_at": "1970-01-01T00:00:00Z",
+  "repository": "apache/ozone",
+  "total_prs_scanned": 0,
+  "review_excludes_automated": true,
+  "reviews_truncated_pr_count": 0,
+  "by_month": {},
+  "metric_definitions": {
+    "submitted_by_login": "Placeholder until metrics workflow runs",
+    "reviews_by_login": "Placeholder",
+    "merges_by_login": "Placeholder"
+  }
+}

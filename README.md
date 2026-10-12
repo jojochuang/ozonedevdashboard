@@ -13,6 +13,11 @@ Static dashboard for [apache/ozone](https://github.com/apache/ozone) pull-reques
 
 Published at **https://jojochuang.github.io/ozonedevdashboard/** (GitHub Pages).
 
+Pages:
+
+- **Velocity** (`index.html`) — PR flow, lead time, CI
+- **Contributors** (`contributors.html`) — ranked submitted / reviewed / merged-by by month, quarter, or year
+
 ## Local preview
 
 ```bash
