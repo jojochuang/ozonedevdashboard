@@ -153,6 +153,11 @@ main {
 .chart-wrap {
   position: relative;
   height: 260px;
+  min-height: 260px;
+}
+
+.chart-wrap canvas {
+  display: block;
 }
 
 .table-panel {

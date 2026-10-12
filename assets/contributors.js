@@ -97,27 +97,57 @@ function destroyCharts() {
   chartSubmitted = chartReviewed = chartMerged = null;
 }
 
+function setChartWrapHeight(canvas, barCount) {
+  const wrap = canvas.closest(".chart-wrap");
+  if (!wrap) return;
+  // Enough vertical space so Chart.js does not auto-hide category labels.
+  const height = Math.max(280, barCount * 28 + 56);
+  wrap.style.height = `${height}px`;
+}
+
 function renderCharts(agg) {
   destroyCharts();
-  const common = {
-    indexAxis: "y",
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { color: "#8b9cb3" }, grid: { color: "#2d3a4d" } },
-      y: { ticks: { color: "#8b9cb3" }, grid: { color: "#2d3a4d" } },
-    },
-  };
   const mk = (id, map, color) => {
+    const canvas = document.getElementById(id);
     const top = topN(map, 15);
-    return new Chart(document.getElementById(id), {
+    setChartWrapHeight(canvas, top.length || 1);
+    const maxLabelLen = top.reduce((m, t) => Math.max(m, t[0].length), 0);
+    const leftPad = Math.min(160, Math.max(72, maxLabelLen * 6.5));
+    return new Chart(canvas, {
       type: "bar",
       data: {
         labels: top.map((t) => t[0]),
         datasets: [{ data: top.map((t) => t[1]), backgroundColor: color }],
       },
-      options: common,
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { left: 4, right: 8 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { title: (items) => items[0]?.label || "" } },
+        },
+        scales: {
+          x: {
+            ticks: { color: "#8b9cb3" },
+            grid: { color: "#2d3a4d" },
+          },
+          y: {
+            ticks: {
+              color: "#8b9cb3",
+              autoSkip: false,
+              mirror: false,
+              padding: 6,
+              font: { size: 11 },
+            },
+            grid: { display: false },
+            afterFit(scale) {
+              scale.width = leftPad;
+            },
+          },
+        },
+      },
     });
   };
   chartSubmitted = mk("chart-submitted", agg.submitted, "#4dabf7");
